@@ -1,0 +1,70 @@
+                                                         #####################MNIST model#####################
+
+# STEP 1: Train and save the model
+import tensorflow as tf
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+from tensorflow.keras.utils import to_categorical
+
+# Load the dataset
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+# Preprocess the data
+x_train = x_train.reshape(-1, 28, 28, 1).astype('float32') / 255
+x_test = x_test.reshape(-1, 28, 28, 1).astype('float32') / 255
+y_train = to_categorical(y_train)
+y_test = to_categorical(y_test)
+
+# Build the model
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+    MaxPooling2D((2, 2)),
+    Flatten(),
+    Dense(128, activation='relu'),
+    Dense(10, activation='softmax')
+])
+
+# Compile and train
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.fit(x_train, y_train, epochs=5, batch_size=128, validation_split=0.1)
+
+# Save the trained model
+model.save("mnist_model.h5")
+print("✅ Model saved as mnist_model.h5")
+
+
+
+                                                          #####################Digit Predictor########################
+
+!pip install gradio --quiet
+
+import gradio as gr
+import tensorflow as tf
+import numpy as np
+from PIL import Image, ImageOps
+
+# Load your trained model
+model = tf.keras.models.load_model("mnist_model.h5")
+
+# Prediction function
+def predict_digit(image):
+    image = Image.fromarray(image).convert("L")  # Convert to grayscale
+    image = image.resize((28, 28))               # Resize for MNIST
+    image = ImageOps.invert(image)               # Invert to white bg, black digit
+    img_array = np.array(image) / 255.0          # Normalize
+    img_array = img_array.reshape(1, 28, 28, 1)   # Shape: (1, 28, 28, 1)
+    prediction = model.predict(img_array)
+    return {str(i): float(prediction[0][i]) for i in range(10)}
+
+# Create the Gradio interface with Sketchpad (no shape, no brush_radius)
+interface = gr.Interface(
+    fn=predict_digit,
+    inputs=gr.Sketchpad(),
+    outputs=gr.Label(num_top_classes=3),
+    title="🖍️ Handwritten Digit Recognizer",
+    description="Draw a digit (0–9) on the canvas and get predictions from your CNN model!"
+)
+
+interface.launch(share=True)
+
